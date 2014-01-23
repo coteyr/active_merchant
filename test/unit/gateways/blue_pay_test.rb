@@ -54,7 +54,7 @@ class BluePayTest < Test::Unit::TestCase
     result = {}
 
     @gateway.send(:add_address, result, :billing_address => {:address1 => '123 Test St.', :address2 => '5F', :city => 'Testville', :company => 'Test Company', :country => 'DE', :state => ''} )
-    assert_equal ["ADDR1", "ADDR2", "CITY", "COMPANY_NAME", "COUNTRY", "NAME1", "NAME2", "PHONE", "STATE", "ZIP"], result.stringify_keys.keys.sort
+    assert_equal ["ADDR1", "ADDR2", "CITY", "COMPANY_NAME", "COUNTRY", "PHONE", "STATE", "ZIP"], result.stringify_keys.keys.sort
     assert_equal 'n/a', result[:STATE]
     assert_equal '123 Test St.', result[:ADDR1]
     assert_equal 'DE', result[:COUNTRY]
@@ -65,11 +65,21 @@ class BluePayTest < Test::Unit::TestCase
 
     @gateway.send(:add_address, result, :billing_address => {:address1 => '123 Test St.', :address2 => '5F', :city => 'Testville', :company => 'Test Company', :country => 'US', :state => 'AK'} )
 
-    assert_equal ["ADDR1", "ADDR2", "CITY", "COMPANY_NAME", "COUNTRY", "NAME1", "NAME2", "PHONE", "STATE", "ZIP"], result.stringify_keys.keys.sort
+    assert_equal ["ADDR1", "ADDR2", "CITY", "COMPANY_NAME", "COUNTRY", "PHONE", "STATE", "ZIP"], result.stringify_keys.keys.sort
     assert_equal 'AK', result[:STATE]
     assert_equal '123 Test St.', result[:ADDR1]
     assert_equal 'US', result[:COUNTRY]
 
+  end
+
+  def test_name_comes_from_payment_method
+    result = {}
+
+    @gateway.send(:add_creditcard, result, @credit_card)
+    @gateway.send(:add_address, result, :billing_address => {:address1 => '123 Test St.', :address2 => '5F', :city => 'Testville', :company => 'Test Company', :country => 'US', :state => 'AK'} )
+
+    assert_equal @credit_card.first_name, result[:NAME1]
+    assert_equal @credit_card.last_name, result[:NAME2]
   end
 
   def test_add_invoice
@@ -153,27 +163,18 @@ class BluePayTest < Test::Unit::TestCase
     end
   end
 
-  def test_response_under_review_by_fraud_service
-    @gateway.expects(:ssl_post).returns(fraud_review_response)
-
-    response = @gateway.purchase(@amount, @credit_card)
-    assert_failure response
-    assert response.fraud_review?
-    assert_equal "Thank you! For security reasons your order is currently being reviewed", response.message
-  end
-
   def test_avs_result
-    @gateway.expects(:ssl_post).returns(fraud_review_response)
+    @gateway.expects(:ssl_post).returns(successful_authorization_response)
 
     response = @gateway.purchase(@amount, @credit_card)
-    assert_equal 'X', response.avs_result['code']
+    assert_equal '_', response.avs_result['code']
   end
 
   def test_cvv_result
-    @gateway.expects(:ssl_post).returns(fraud_review_response)
+    @gateway.expects(:ssl_post).returns(successful_authorization_response)
 
     response = @gateway.purchase(@amount, @credit_card)
-    assert_equal 'M', response.cvv_result['code']
+    assert_equal '_', response.cvv_result['code']
   end
 
   def test_message_from
@@ -268,10 +269,6 @@ class BluePayTest < Test::Unit::TestCase
 
   def failed_authorization_response
     "AUTH_CODE=&PAYMENT_ACCOUNT_MASK=xxxxxxxxxxxx4242&CARD_TYPE=VISA&TRANS_TYPE=AUTH&REBID=&STATUS=0&AVS=_&TRANS_ID=100134229728&CVV2=_&MESSAGE=Declined%20Auth"
-  end
-
-  def fraud_review_response
-    "AUTH_CODE=&PAYMENT_ACCOUNT_MASK=xxxxxxxxxxxx4242&CARD_TYPE=VISA&TRANS_TYPE=AUTH&REBID=&STATUS=0&AVS=X&TRANS_ID=100134229728&CVV2=M&MESSAGE=Thank%20you!%20For%20security%20reasons%20your%20order%20is%20currently%20being%20reviewed"
   end
 
   def successful_recurring_response

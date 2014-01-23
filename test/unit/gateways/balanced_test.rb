@@ -98,6 +98,15 @@ class BalancedTest < Test::Unit::TestCase
     assert response.test?
   end
 
+  def test_bad_email
+    @gateway.stubs(:ssl_request).returns(failed_account_response_bad_email).then.returns(successful_card_response)
+
+    assert response = @gateway.purchase(@amount, @credit_card, @options)
+    assert_failure response
+    assert response.test?
+    assert_match /must be a valid email address/, response.message
+  end
+
   def test_unsuccessful_purchase
     @gateway.expects(:ssl_request).times(4).returns(
         successful_account_response
@@ -255,6 +264,10 @@ class BalancedTest < Test::Unit::TestCase
   end
 
   def test_refund_with_nil_debit_uri
+    @gateway.expects(:ssl_request).times(1).returns(
+        failed_refund_response
+    )
+
     assert refund = @gateway.refund(nil, nil)
     assert_instance_of Response, refund
     assert_failure refund
@@ -270,11 +283,13 @@ class BalancedTest < Test::Unit::TestCase
     )
 
     card_uri = '/v1/marketplaces/TEST-MP73SaFdpQePv9dOaG5wXOGO/cards/CC6r6kLUcxW3MxG3AmZoiuTf'
+    account_uri = '/v1/marketplaces/TEST-MP73SaFdpQePv9dOaG5wXOGO/accounts/AC5quPICW5qEHXac1KnjKGYu'
     assert response = @gateway.store(@credit_card, {
         :email=>'john.buyer@example.org'
     })
-    assert_instance_of String, response
-    assert_equal card_uri, response
+    assert_instance_of Response, response
+    assert_success response
+    assert_equal "#{card_uri};#{account_uri}", response.authorization
   end
 
   def test_ensure_does_not_respond_to_credit
@@ -378,6 +393,23 @@ class BalancedTest < Test::Unit::TestCase
   },
   "request_id": "OHMc3f6135cd1fd11e19f1e026ba7e5e72e",
   "description": "Account with email address 'john.buyer@example.org' already exists. Your request id is OHMc3f6135cd1fd11e19f1e026ba7e5e72e."
+}
+    RESPONSE
+  end
+
+  def failed_account_response_bad_email
+    <<-RESPONSE
+{
+  "status": "Bad Request",
+  "category_code": "request",
+  "additional": null,
+  "status_code": 400,
+  "category_type": "request",
+  "extras": {
+    "email_address": "invalid_email must be a valid email address as specified by RFC-2822"
+  },
+  "request_id": "OHM417b4e7ad9e411e2893c026ba7c1aba6",
+  "description": "Invalid field [email_address] - invalid_email must be a valid email address as specified by RFC-2822 Your request id is OHM417b4e7ad9e411e2893c026ba7c1aba6."
 }
     RESPONSE
   end

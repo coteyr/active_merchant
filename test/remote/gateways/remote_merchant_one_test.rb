@@ -1,8 +1,6 @@
 require 'test_helper'
-  require 'logger'
 
 class RemoteMerchantOneTest < Test::Unit::TestCase
-
 
   def setup
     @gateway = MerchantOneGateway.new(fixtures(:merchant_one))
@@ -13,13 +11,21 @@ class RemoteMerchantOneTest < Test::Unit::TestCase
 
     @options = {
       :order_id => '1',
-      :billing_address => {name: 'Jim Smith', address1: '1234 My Street', address2: 'Apt 1', city: 'Tampa', state: 'FL', zip: '33603', country: 'US', phone: '(813)421-4331'},
-      :description => 'Store Purchase'
+      :description => 'Store Purchase',
+      :billing_address => {
+        name: 'Jim Smith',
+        address1: '1234 My Street',
+        address2: 'Apt 1',
+        city: 'Tampa',
+        state: 'FL',
+        zip: '33603',
+        country: 'US',
+        phone: '(813)421-4331'
+      }
     }
   end
 
   def test_successful_purchase
-
     assert response = @gateway.purchase(@amount, @credit_card, @options)
     assert_success response
     assert_equal 'SUCCESS', response.message
@@ -44,8 +50,6 @@ class RemoteMerchantOneTest < Test::Unit::TestCase
    def test_failed_capture
     assert response = @gateway.capture(@amount, '')
     assert_failure response
-    # This won't work because the message is always different
-    # assert_equal 'Transaction not found', response.message
    end
 
    def test_invalid_login
