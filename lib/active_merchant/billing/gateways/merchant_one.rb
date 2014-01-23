@@ -42,6 +42,7 @@ module ActiveMerchant #:nodoc:
         add_address(post, creditcard, options)
         add_customer_data(post, options)
         add_amount(post, money, options)
+        add_frequency(post, options)
         commit('sale', money, post)
       end
 
@@ -56,7 +57,33 @@ module ActiveMerchant #:nodoc:
         MerchantOneSslConnection.new(endpoint)
       end
 
-      private
+      def recurring(money, creditcard, options={})
+        post = {}
+        add_customer_data(post, options)
+        add_creditcard(post, creditcard)
+        add_address(post, creditcard, options)
+        add_amount(post, money, options)
+        add_frequency(post, options)
+        commit_recurring('add_subscription', money, post)
+      end
+
+      def status_recurring(subscription_id)
+
+      end
+
+      def update_recurring(options={})
+        commit_recurring('update_subscription', options)
+      end
+
+      def cancel_recurring(subscription_id)
+        post = {}
+        post[:subscription_id] = subscription_id
+        commit_recurring('delete_subscription', post)
+      end
+
+
+
+private
 
       def add_customer_data(post, options)
         post['firstname'] = options[:billing_address][:first_name]
@@ -76,15 +103,32 @@ module ActiveMerchant #:nodoc:
       end
 
       def add_creditcard(post, creditcard)
-       post['cvv'] = creditcard.verification_value
-       post['ccnumber'] = creditcard.number
-       post['ccexp'] =  "#{sprintf("%02d", creditcard.month)}#{"#{creditcard.year}"[-2, 2]}"
+        post['cvv'] = creditcard.verification_value if creditcard.verification_value
+        post['ccnumber'] = creditcard.number
+        post['ccexp'] =  "#{sprintf("%02d", creditcard.month)}#{"#{creditcard.year}"[-2, 2]}"
+      end
+      def add_frequency(post, options={})
+        if options[:interval]
+          if options[:interval][:unit] == :days
+            post['day_frequency'] = options[:interval][:length]
+          elsif options[:interval][:unit] == :months
+            post['month_frequency'] = options[:interval][:length]
+            post['day_of_month'] = options[:interval][:day_of_month] if options[:interval][:day_of_month]
+            post['day_of_month'] ||= '1'
+          end
+        end
+        post['start_date'] = options[:start_date] if options[:start_date]
       end
 
       def commit(action, money, parameters={})
         parameters['username'] = @options[:username]
         parameters['password'] = @options[:password]
         parse(ssl_post(BASE_URL,post_data(action, parameters)))
+      end
+
+      def commit_recurring(action, money, parameters={})
+        parameters['recurring'] = action
+        commit('', money, parameters)
       end
 
       def post_data(action, parameters = {})
