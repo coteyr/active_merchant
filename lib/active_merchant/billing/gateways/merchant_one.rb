@@ -90,7 +90,7 @@ private
         post['lastname'] = options[:billing_address][:last_name]
       end
 
-      def add_amount(post, money, options, recurring)
+      def add_amount(post, money, options, recurring=false)
         if recurring
           post['plan_amount'] = amount(money)
         else
