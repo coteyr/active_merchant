@@ -62,7 +62,7 @@ module ActiveMerchant #:nodoc:
         add_customer_data(post, options)
         add_creditcard(post, creditcard)
         add_address(post, creditcard, options)
-        add_amount(post, money, options)
+        add_amount(post, money, options, true)
         add_frequency(post, options)
         commit_recurring('add_subscription', money, post)
       end
@@ -90,8 +90,12 @@ private
         post['lastname'] = options[:billing_address][:last_name]
       end
 
-      def add_amount(post, money, options)
-        post['amount'] = amount(money)
+      def add_amount(post, money, options, recurring)
+        if recurring
+          post['plan_amount'] = amount(money)
+        else
+          post['amount'] = amount(money)
+        end
       end
 
       def add_address(post, creditcard, options)
