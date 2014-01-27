@@ -85,9 +85,9 @@ module ActiveMerchant #:nodoc:
 
 private
 
-      def add_customer_data(post, options)
-        post['firstname'] = options[:billing_address][:first_name]
-        post['lastname'] = options[:billing_address][:last_name]
+      def add_customer_data(post, options={})
+          post['firstname'] = options[:billing_address][:first_name] if options[:billing_address]
+          post['lastname'] = options[:billing_address][:last_name] if options[:billing_address]
       end
 
       def add_amount(post, money, options, recurring=false)
@@ -119,6 +119,11 @@ private
             post['month_frequency'] = options[:interval][:length]
             post['day_of_month'] = options[:interval][:day_of_month] if options[:interval][:day_of_month]
             post['day_of_month'] ||= '1'
+          end
+          if options[:interval][:count]
+            post['plan_payments'] = options[:interval][:count]
+          else
+            post['plan_payments'] = 0
           end
         end
         post['start_date'] = options[:start_date] if options[:start_date]

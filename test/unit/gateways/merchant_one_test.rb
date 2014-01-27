@@ -10,7 +10,8 @@ class MerchantOneTest < Test::Unit::TestCase
       :order_id => '1',
       :description => 'Store Purchase',
       :billing_address => {
-        :name =>'Jim Smith',
+        :first_name =>'Jim'
+        :last_name=> 'Smith',
         :address1 =>'1234 My Street',
         :address2 =>'Apt 1',
         :city =>'Tampa',

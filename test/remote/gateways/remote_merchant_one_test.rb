@@ -13,7 +13,8 @@ class RemoteMerchantOneTest < Test::Unit::TestCase
       :order_id => '1',
       :description => 'Store Purchase',
       :billing_address => {
-        name: 'Jim Smith',
+        first_name: 'Jim',
+        last_name: 'Smith',
         address1: '1234 My Street',
         address2: 'Apt 1',
         city: 'Tampa',
@@ -60,5 +61,20 @@ class RemoteMerchantOneTest < Test::Unit::TestCase
      assert response = gateway.purchase(@amount, @credit_card, @options)
      assert_failure response
      assert_equal 'Authentication Failed', response.message
+   end
+   def test_successful_recurring
+    @options.merge!({:interval=>{:unit=>:days, :length=>10}})
+    assert response = @gateway.recurring(@amount, @credit_card, @options)
+    assert_success response
+    subscription_id = response.authorization
+
+    #assert response = @gateway.update_recurring(:subscription_id => subscription_id, :amount => @amount * 2)
+    #assert_success response
+
+    # assert response = @gateway.status_recurring(subscription_id)
+    # assert_success response
+
+    #assert response = @gateway.cancel_recurring(subscription_id)
+    #assert_success response
    end
 end
