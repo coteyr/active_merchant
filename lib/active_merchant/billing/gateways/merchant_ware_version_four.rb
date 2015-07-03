@@ -129,7 +129,7 @@ module ActiveMerchant #:nodoc:
       def build_purchase_request(action, money, payment_source, options)
         requires!(options, :order_id)
 
-        request = soap_request(action) do |xml|
+        soap_request(action) do |xml|
           add_invoice(xml, options)
           add_amount(xml, money)
           add_payment_source(xml, payment_source)
@@ -140,18 +140,11 @@ module ActiveMerchant #:nodoc:
       def build_capture_request(action, money, identification, options)
         reference, options[:order_id] = split_reference(identification)
 
-        request = soap_request(action) do |xml|
+        soap_request(action) do |xml|
           add_reference_token(xml, reference)
           add_invoice(xml, options)
           add_amount(xml, money)
         end
-      end
-
-      def expdate(credit_card)
-        year  = sprintf("%.4i", credit_card.year)
-        month = sprintf("%.2i", credit_card.month)
-
-        "#{month}#{year[-2..-1]}"
       end
 
       def add_invoice(xml, options)
@@ -234,7 +227,7 @@ module ActiveMerchant #:nodoc:
 
         response[:message] = response["ErrorMessage"].to_s.gsub("\n", " ")
         response
-      rescue REXML::ParseException => e
+      rescue REXML::ParseException
         response[:http_body]        = http_response.body
         response[:message]          = "Failed to parse the failed response"
         response

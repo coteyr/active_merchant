@@ -7,7 +7,7 @@ class RemoteConektaTest < Test::Unit::TestCase
     @amount = 300
 
     @credit_card = ActiveMerchant::Billing::CreditCard.new(
-      number:             "4111111111111111",
+      number:             "4242424242424242",
       verification_value: "183",
       month:              "01",
       year:               "2018",
@@ -25,14 +25,17 @@ class RemoteConektaTest < Test::Unit::TestCase
     )
 
     @options = {
+      :device_fingerprint => "41l9l92hjco6cuekf0c7dq68v4",
       description: 'Blue clip',
-      address1: "Rio Missisipi #123",
-      address2: "Paris",
-      city: "Guerrero",
-      country: "Mexico",
-      zip: "5555",
-      name: "Mario Reyes",
-      phone: "12345678",
+      billing_address: {
+        address1: "Rio Missisipi #123",
+        address2: "Paris",
+        city: "Guerrero",
+        country: "Mexico",
+        zip: "5555",
+        name: "Mario Reyes",
+        phone: "12345678",
+      },
       carrier: "Estafeta"
     }
   end
@@ -46,7 +49,6 @@ class RemoteConektaTest < Test::Unit::TestCase
   def test_unsuccessful_purchase
     assert response = @gateway.purchase(@amount, @declined_card, @options)
     assert_failure response
-    assert_equal "The card was declined", response.message
   end
 
   def test_successful_refund
@@ -55,15 +57,15 @@ class RemoteConektaTest < Test::Unit::TestCase
     assert_success response
     assert_equal nil, response.message
 
-    assert response = @gateway.refund(response.authorization, @amount, @options)
+    assert response = @gateway.refund(@amount, response.authorization, @options)
     assert_success response
     assert_equal nil, response.message
   end
 
   def test_unsuccessful_refund
-    assert response = @gateway.refund("1", @amount, @options)
+    assert response = @gateway.refund(@amount, "1", @options)
     assert_failure response
-    assert_equal "The charge does not exist or it is not suitable for this operation", response.message
+    assert_equal "El recurso no ha sido encontrado.", response.message
   end
 
   def test_successful_authorize
@@ -75,7 +77,6 @@ class RemoteConektaTest < Test::Unit::TestCase
   def test_unsuccessful_authorize
     assert response = @gateway.authorize(@amount, @declined_card, @options)
     assert_failure response
-    assert_equal "The card was declined", response.message
   end
 
   def test_successful_capture
@@ -83,37 +84,59 @@ class RemoteConektaTest < Test::Unit::TestCase
     assert_success response
     assert_equal nil, response.message
 
-    assert response = @gateway.capture(response.authorization, @amount, @options)
+    assert response = @gateway.capture(@amount, response.authorization, @options)
     assert_success response
     assert_equal nil, response.message
   end
 
-  def test_successful_store
-    assert response = @gateway.store(@credit_card, {name: "John Doe", email: "email@example.com"})
-    assert_success response
-    assert_equal "customer", response.params["object"]
-    assert_equal "John Doe", response.params["name"]
-    assert_equal "email@example.com", response.params["email"]
-  end
-
-  def test_successful_unstore
-    creation = @gateway.store(@credit_card, {name: "John Doe", email: "email@example.com"})
-    assert response = @gateway.unstore(creation.params['id'])
-    assert_success response
-    assert_equal true, response.params["deleted"]
-  end
-
   def test_unsuccessful_capture
-    @options[:order_id] = "1"
-    assert response = @gateway.capture(@amount, @options)
+    assert response = @gateway.capture(@amount, "1", @options)
     assert_failure response
-    assert_equal "The charge does not exist or it is not suitable for this operation", response.message
+    assert_equal "El recurso no ha sido encontrado.", response.message
   end
 
-  def test_invalid_login
+  def test_successful_purchase_passing_more_details
+    more_options = {
+      customer: "TheCustomerName",
+      shipping_address: {
+        address1: "33 Main Street",
+        address2: "Apartment 3",
+        city: "Wanaque",
+        state: "NJ",
+        country: "USA",
+        zip: "01085",
+      },
+      line_items: [
+        {
+          rname: "Box of Cohiba S1s",
+          description: "Imported From Mex.",
+          unit_price: 20000,
+          quantity: 1,
+          sku: "cohb_s1",
+          type: "other_human_consumption"
+        },
+        {
+          name: "Basic Toothpicks",
+          description: "Wooden",
+          unit_price: 100,
+          quantity: 250,
+          sku: "tooth_r3",
+          type: "Extra pointy"
+        }
+      ]
+    }
+    assert response = @gateway.purchase(@amount, @credit_card, @options.merge(more_options))
+    assert_success response
+    assert_equal "Wanaque", response.params['details']['shipment']['address']['city']
+    assert_equal "Wooden", response.params['details']['line_items'][-1]['description']
+    assert_equal "TheCustomerName", response.params['details']['name']
+    assert_equal "Guerrero", response.params['details']['billing_address']['city']
+  end
+
+  def test_invalid_key
     gateway = ConektaGateway.new(key: 'invalid_token')
     assert response = gateway.purchase(@amount, @credit_card, @options)
     assert_failure response
-    assert_equal "Unrecognized authentication token", response.message
+    assert_equal "Acceso no autorizado.", response.message
   end
 end

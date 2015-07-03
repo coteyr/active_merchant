@@ -91,7 +91,7 @@ module ActiveMerchant #:nodoc:
       def build_sale_request(money, credit_card, options)
         build_xml_request(money, credit_card, options) do |xml|
           add_customer_data(xml, options)
-          add_order_data(xml, options) do |xml|
+          add_order_data(xml, options) do
             add_addresses(xml, options)
           end
           add_credit_card(xml, credit_card)
@@ -104,7 +104,7 @@ module ActiveMerchant #:nodoc:
       def build_authorize_request(money, credit_card, options)
          build_xml_request(money, credit_card, options) do |xml|
           add_customer_data(xml, options)
-          add_order_data(xml, options)  do |xml|
+          add_order_data(xml, options)  do
             add_addresses(xml, options)
           end
           add_credit_card(xml, credit_card)
@@ -230,7 +230,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def parse(body)
-        xml = REXML::Document.new(body)
+        xml = REXML::Document.new(strip_invalid_xml_chars(body))
 
         response = {}
         xml.root.elements.to_a.each do |node|
@@ -249,6 +249,10 @@ module ActiveMerchant #:nodoc:
 
       def success?(response)
         response[:message] == "Approved"
+      end
+
+      def strip_invalid_xml_chars(xml)
+        xml.gsub(/&(?!(?:[a-z]+|#[0-9]+|x[a-zA-Z0-9]+);)/, '&amp;')
       end
 
     end

@@ -363,6 +363,10 @@ module ActiveMerchant #:nodoc:
       #     - :type = (:void, :refund, :prior_auth_capture) (NOT USED)
       #     - :type = (:auth_only, :capture_only, :auth_capture) (OPTIONAL)
       #
+      # * <tt>:recurring_billing</tt> -- The recurring billing status (OPTIONAL)
+      #     - :type = (:void, :refund, :prior_auth_capture) (NOT USED)
+      #     - :type = (:auth_only, :capture_only, :auth_capture) (OPTIONAL)
+      #
       # * <tt>:customer_shipping_address_id</tt> -- Payment gateway assigned ID associated with the customer shipping address (CONDITIONAL)
       #     - :type = (:void, :refund) (OPTIONAL)
       #     - :type = (:auth_only, :capture_only, :auth_capture) (NOT USED)
@@ -609,10 +613,12 @@ module ActiveMerchant #:nodoc:
 
       def build_create_customer_profile_transaction_request(xml, options)
         options[:extra_options] ||= {}
-        options[:extra_options].merge!('x_test_request' => 'TRUE') if @options[:test_requests]
+        options[:extra_options].merge!('x_delim_char' => @options[:delimiter]) if @options[:delimiter]
 
         add_transaction(xml, options[:transaction])
-        tag_unless_blank(xml, 'extraOptions', format_extra_options(options[:extra_options]))
+        xml.tag!('extraOptions') do
+          xml.cdata!(format_extra_options(options[:extra_options]))
+        end unless options[:extra_options].blank?
 
         xml.target!
       end
@@ -672,20 +678,26 @@ module ActiveMerchant #:nodoc:
                 tag_unless_blank(xml, 'creditCardNumberMasked', transaction[:credit_card_number_masked])
                 tag_unless_blank(xml, 'bankRoutingNumberMasked', transaction[:bank_routing_number_masked])
                 tag_unless_blank(xml, 'bankAccountNumberMasked', transaction[:bank_account_number_masked])
+                add_order(xml, transaction[:order]) if transaction[:order].present?
                 xml.tag!('transId', transaction[:trans_id])
                 add_tax(xml, transaction[:tax]) if transaction[:tax]
                 add_duty(xml, transaction[:duty]) if transaction[:duty]
                 add_shipping(xml, transaction[:shipping]) if transaction[:shipping]
               when :prior_auth_capture
                 xml.tag!('amount', transaction[:amount])
+                add_order(xml, transaction[:order]) if transaction[:order].present?
                 xml.tag!('transId', transaction[:trans_id])
               else
                 xml.tag!('amount', transaction[:amount])
                 xml.tag!('customerProfileId', transaction[:customer_profile_id])
                 xml.tag!('customerPaymentProfileId', transaction[:customer_payment_profile_id])
                 xml.tag!('approvalCode', transaction[:approval_code]) if transaction[:type] == :capture_only
+                add_order(xml, transaction[:order]) if transaction[:order].present?
+
             end
-            add_order(xml, transaction[:order]) if transaction[:order].present?
+            if [:auth_capture, :auth_only, :capture_only].include?(transaction[:type])
+              xml.tag!('recurringBilling', transaction[:recurring_billing]) if transaction.has_key?(:recurring_billing)
+            end
             unless [:void,:refund,:prior_auth_capture].include?(transaction[:type])
               tag_unless_blank(xml, 'cardCode', transaction[:card_code])
             end
@@ -787,7 +799,7 @@ module ActiveMerchant #:nodoc:
         return unless credit_card
         xml.tag!('creditCard') do
           # The credit card number used for payment of the subscription
-          xml.tag!('cardNumber', credit_card.number)
+          xml.tag!('cardNumber', full_or_masked_card_number(credit_card.number))
           # The expiration date of the credit card used for the subscription
           xml.tag!('expirationDate', expdate(credit_card))
           # Note that Authorize.net does not save CVV codes as part of the
@@ -954,6 +966,10 @@ module ActiveMerchant #:nodoc:
         end
 
         response
+      end
+
+      def full_or_masked_card_number(card_number)
+        !card_number.nil? && card_number.length == 4 ? "XXXX#{card_number}" : card_number
       end
     end
   end

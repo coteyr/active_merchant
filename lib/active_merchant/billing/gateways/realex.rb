@@ -28,7 +28,8 @@ module ActiveMerchant
         'diners_club'       => 'DINERS',
         'switch'            => 'SWITCH',
         'solo'              => 'SWITCH',
-        'laser'             => 'LASER'
+        'laser'             => 'LASER',
+        'maestro'           => 'MC'
       }
 
       self.money_format = :cents
@@ -73,7 +74,7 @@ module ActiveMerchant
       end
 
       def credit(money, authorization, options = {})
-        deprecated CREDIT_DEPRECATION_MESSAGE
+        ActiveMerchant.deprecated CREDIT_DEPRECATION_MESSAGE
         refund(money, authorization, options)
       end
 
@@ -263,16 +264,6 @@ module ActiveMerchant
 
       def expiry_date(credit_card)
         "#{format(credit_card.month, :two_digits)}#{format(credit_card.year, :two_digits)}"
-      end
-
-      def normalize(field)
-        case field
-        when "true"   then true
-        when "false"  then false
-        when ""       then nil
-        when "null"   then nil
-        else field
-        end
       end
 
       def message_from(response)

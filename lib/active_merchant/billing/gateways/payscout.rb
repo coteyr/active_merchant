@@ -9,8 +9,6 @@ module ActiveMerchant #:nodoc:
       self.homepage_url = 'http://www.payscout.com/'
       self.display_name = 'Payscout'
 
-      self.ssl_version = 'SSLv3'
-
       def initialize(options = {})
         requires!(options, :username, :password)
         super
@@ -155,15 +153,8 @@ module ActiveMerchant #:nodoc:
         post[:password]       = @options[:password]
         post[:type]           = action
 
-        request = post.merge(parameters).collect { |key, value| "#{key}=#{URI.escape(value.to_s)}" }.join("&")
+        request = post.merge(parameters).collect { |key, value| "#{key}=#{CGI.escape(value.to_s)}" }.join("&")
         request
-      end
-
-      def expdate(creditcard)
-        year  = sprintf("%.4i", creditcard.year)
-        month = sprintf("%.2i", creditcard.month)
-
-        "#{month}#{year[-2..-1]}"
       end
     end
   end

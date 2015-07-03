@@ -4,9 +4,7 @@ class SagePayTest < Test::Unit::TestCase
   include CommStub
 
   def setup
-    @gateway = SagePayGateway.new(
-      :login => 'X'
-    )
+    @gateway = SagePayGateway.new(login: 'X')
 
     @credit_card = credit_card('4242424242424242', :brand => 'visa')
     @options = {
@@ -32,7 +30,6 @@ class SagePayTest < Test::Unit::TestCase
     @gateway.expects(:ssl_post).returns(successful_purchase_response)
 
     assert response = @gateway.purchase(@amount, @credit_card, @options)
-    assert_instance_of Response, response
     assert_equal "1;B8AE1CF6-9DEF-C876-1BB4-9B382E6CE520;4193753;OHMETD7DFK;purchase", response.authorization
     assert_success response
   end
@@ -41,7 +38,6 @@ class SagePayTest < Test::Unit::TestCase
     @gateway.expects(:ssl_post).returns(unsuccessful_purchase_response)
 
     assert response = @gateway.purchase(@amount, @credit_card, @options)
-    assert_instance_of Response, response
     assert_failure response
   end
 
@@ -93,12 +89,12 @@ class SagePayTest < Test::Unit::TestCase
   end
 
   def test_avs_result
-     @gateway.expects(:ssl_post).returns(successful_purchase_response)
+    @gateway.expects(:ssl_post).returns(successful_purchase_response)
 
-     response = @gateway.purchase(@amount, @credit_card, @options)
-     assert_equal 'Y', response.avs_result['postal_match']
-     assert_equal 'N', response.avs_result['street_match']
-   end
+    response = @gateway.purchase(@amount, @credit_card, @options)
+    assert_equal 'Y', response.avs_result['postal_match']
+    assert_equal 'N', response.avs_result['street_match']
+  end
 
    def test_cvv_result
      @gateway.expects(:ssl_post).returns(successful_purchase_response)
@@ -132,12 +128,83 @@ class SagePayTest < Test::Unit::TestCase
     end.respond_with(successful_purchase_response)
   end
 
+  def test_FIxxxx_optional_fields_are_submitted
+    stub_comms(@gateway, :ssl_request) do
+      @gateway.purchase(@amount, @credit_card, @options.merge({:recipient_account_number => '1234567890', :recipient_surname => 'Withnail', :recipient_postcode => 'AB11AB', :recipient_dob => '19701223'}))
+    end.check_request do |method, endpoint, data, headers|
+      assert_match(/FIRecipientAcctNumber=1234567890/, data)
+      assert_match(/FIRecipientSurname=Withnail/, data)
+      assert_match(/FIRecipientPostcode=AB11AB/, data)
+      assert_match(/FIRecipientDoB=19701223/, data)
+    end.respond_with(successful_purchase_response)
+  end
+
   def test_disable_3d_security_flag_is_submitted
     stub_comms(@gateway, :ssl_request) do
       @gateway.purchase(@amount, @credit_card, @options.merge({:apply_3d_secure => 1}))
     end.check_request do |method, endpoint, data, headers|
       assert_match(/Apply3DSecure=1/, data)
     end.respond_with(successful_purchase_response)
+  end
+
+  def test_description_is_truncated
+    stub_comms(@gateway, :ssl_request) do
+      @gateway.purchase(@amount, @credit_card, @options.merge(description: "SagePay transactions fail if the description is more than 100 characters. Therefore, we truncate it to 100 characters."))
+    end.check_request do |method, endpoint, data, headers|
+      assert_match(/&Description=SagePay\+transactions\+fail\+if\+the\+description\+is\+more\+than\+100\+characters.\+Therefore%2C\+we\+truncate\+it\+&/, data)
+    end.respond_with(successful_purchase_response)
+  end
+
+  def test_protocol_version_is_honoured
+    gateway = SagePayGateway.new(protocol_version: '2.23', login: "X")
+
+    stub_comms(gateway, :ssl_request) do
+      gateway.purchase(@amount, @credit_card, @options)
+    end.check_request do |method, endpoint, data, headers|
+      assert_match(/VPSProtocol=2.23/, data)
+    end.respond_with(successful_purchase_response)
+  end
+
+  def test_referrer_id_is_added_to_post_data_parameters
+    ActiveMerchant::Billing::SagePayGateway.application_id = '00000000-0000-0000-0000-000000000001'
+    stub_comms(@gateway, :ssl_request) do
+      @gateway.purchase(@amount, @credit_card, @options)
+    end.check_request do |method, endpoint, data, headers|
+      assert data.include?("ReferrerID=00000000-0000-0000-0000-000000000001")
+    end.respond_with(successful_purchase_response)
+  ensure
+    ActiveMerchant::Billing::SagePayGateway.application_id = nil
+  end
+
+  def test_successful_store
+    response = stub_comms(@gateway, :ssl_request) do
+      @gateway.store(@credit_card)
+    end.check_request do |method, endpoint, data, headers|
+      assert_match(/TxType=TOKEN/, data)
+    end.respond_with(successful_purchase_response)
+
+    assert_equal '1', response.authorization
+  end
+
+  def test_successful_verify
+    response = stub_comms do
+      @gateway.verify(@credit_card, @options)
+    end.respond_with(successful_authorize_response, successful_void_response)
+    assert_success response
+  end
+
+  def test_successful_verify_with_failed_void
+    response = stub_comms do
+      @gateway.verify(@credit_card, @options)
+    end.respond_with(successful_authorize_response, unsuccessful_void_response)
+    assert_success response
+  end
+
+  def test_unsuccessful_verify
+    response = stub_comms do
+      @gateway.verify(@credit_card, @options)
+    end.respond_with(unsuccessful_authorize_response, unsuccessful_void_response)
+    assert_failure response
   end
 
   private
@@ -155,6 +222,7 @@ AddressResult=NOTMATCHED
 PostCodeResult=MATCHED
 CV2Result=NOTMATCHED
 3DSecureStatus=NOTCHECKED
+Token=1
     RESP
   end
 
@@ -163,6 +231,68 @@ CV2Result=NOTMATCHED
 VPSProtocol=2.23
 Status=NOTAUTHED
 StatusDetail=VSP Direct transaction from VSP Simulator.
+VPSTxId=7BBA9078-8489-48CD-BF0D-10B0E6B0EF30
+SecurityKey=DKDYLDYLXV
+AVSCV2=ALL MATCH
+AddressResult=MATCHED
+PostCodeResult=MATCHED
+CV2Result=MATCHED
+    RESP
+  end
+
+  def successful_authorize_response
+    <<-RESP
+VPSProtocol=2.23
+Status=OK
+StatusDetail=0000 : The Authorisation was Successful.
+VPSTxId=B8AE1CF6-9DEF-C876-1BB4-9B382E6CE520
+SecurityKey=OHMETD7DFK
+TxAuthNo=4193753
+AVSCV2=NO DATA MATCHES
+AddressResult=NOTMATCHED
+PostCodeResult=MATCHED
+CV2Result=NOTMATCHED
+3DSecureStatus=NOTCHECKED
+Token=1
+    RESP
+  end
+
+  def unsuccessful_authorize_response
+    <<-RESP
+VPSProtocol=2.23
+Status=NOTAUTHED
+StatusDetail=VSP Direct transaction from VSP Simulator.
+VPSTxId=7BBA9078-8489-48CD-BF0D-10B0E6B0EF30
+SecurityKey=DKDYLDYLXV
+AVSCV2=ALL MATCH
+AddressResult=MATCHED
+PostCodeResult=MATCHED
+CV2Result=MATCHED
+    RESP
+  end
+
+  def successful_void_response
+    <<-RESP
+VPSProtocol=2.23
+Status=OK
+StatusDetail=2006 : The Abort was Successful.
+VPSTxId=B8AE1CF6-9DEF-C876-1BB4-9B382E6CE520
+SecurityKey=OHMETD7DFK
+TxAuthNo=4193753
+AVSCV2=NO DATA MATCHES
+AddressResult=NOTMATCHED
+PostCodeResult=MATCHED
+CV2Result=NOTMATCHED
+3DSecureStatus=NOTCHECKED
+Token=1
+    RESP
+  end
+
+  def unsuccessful_void_response
+    <<-RESP
+VPSProtocol=2.23
+Status=MALFORMED
+StatusDetail=3046 : The VPSTxId field is missing.
 VPSTxId=7BBA9078-8489-48CD-BF0D-10B0E6B0EF30
 SecurityKey=DKDYLDYLXV
 AVSCV2=ALL MATCH
